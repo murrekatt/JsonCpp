@@ -42,7 +42,7 @@ print "Building using PLATFORM =", platform
 rootbuild_dir = Dir('#buildscons')
 build_dir = os.path.join( '#buildscons', platform )
 bin_dir = os.path.join( '#bin', platform )
-lib_dir = os.path.join( '#libs', platform )
+lib_dir = os.path.join( '#libs' )
 sconsign_dir_path = Dir(build_dir).abspath
 sconsign_path = os.path.join( sconsign_dir_path, '.sconsign.dbm' )
 
@@ -119,7 +119,7 @@ elif platform == 'mingw':
     env.Append( CPPDEFINES=[ "WIN32", "NDEBUG", "_MT" ] )
 elif platform.startswith('linux-gcc'):
     env.Tool( 'default' )
-    env.Append( LIBS = ['pthread'], CCFLAGS = "-Wall" )
+    env.Append( LIBS = ['pthread'], CCFLAGS = "-Wall -std=c++11" )
     env['SHARED_LIB_ENABLED'] = True
 else:
     print "UNSUPPORTED PLATFORM."
@@ -142,7 +142,7 @@ env['SHARED_LIB_ENABLED'] = env.get('SHARED_LIB_ENABLED', False)
 env['LIB_PLATFORM'] = short_platform
 env['LIB_LINK_TYPE'] = 'lib'    # static
 env['LIB_CRUNTIME'] = 'mt'
-env['LIB_NAME_SUFFIX'] = '${LIB_PLATFORM}_${LIB_LINK_TYPE}${LIB_CRUNTIME}'  # must match autolink naming convention
+env['LIB_NAME_SUFFIX'] = '' #'_${LIB_PLATFORM}_${LIB_LINK_TYPE}${LIB_CRUNTIME}'  # must match autolink naming convention
 env['JSONCPP_VERSION'] = JSONCPP_VERSION
 env['BUILD_DIR'] = env.Dir(build_dir)
 env['ROOTBUILD_DIR'] = env.Dir(rootbuild_dir)
@@ -164,7 +164,8 @@ env['SRCDIST_ADD'] = SrcDistAdder( env )
 env['SRCDIST_TARGET'] = os.path.join( DIST_DIR, 'jsoncpp-src-%s.tar.gz' % env['JSONCPP_VERSION'] )
                       
 env_testing = env.Clone( )
-env_testing.Append( LIBS = ['json_${LIB_NAME_SUFFIX}'] )
+#env_testing.Append( LIBS = ['json${LIB_NAME_SUFFIX}'] )
+env_testing.Append( LIBS = ['json'] )
 
 def buildJSONExample( env, target_sources, target_name ):
     env = env.Clone()
@@ -187,12 +188,12 @@ def buildUnitTests( env, target_sources, target_name ):
     env.AlwaysBuild( check_alias_target )
 
 def buildLibrary( env, target_sources, target_name ):
-    static_lib = env.StaticLibrary( target=target_name + '_${LIB_NAME_SUFFIX}',
+    static_lib = env.StaticLibrary( target=target_name + '${LIB_NAME_SUFFIX}',
                                     source=target_sources )
     global lib_dir
     env.Install( lib_dir, static_lib )
     if env['SHARED_LIB_ENABLED']:
-        shared_lib = env.SharedLibrary( target=target_name + '_${LIB_NAME_SUFFIX}',
+        shared_lib = env.SharedLibrary( target=target_name + '${LIB_NAME_SUFFIX}',
                                         source=target_sources )
         env.Install( lib_dir, shared_lib )
     env['SRCDIST_ADD']( source=[target_sources] )
