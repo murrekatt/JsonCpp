@@ -1,15 +1,8 @@
-"""
-Notes: 
-- shared library support is buggy: it assumes that a static and dynamic library can be build from the same object files. This is not true on many platforms. For this reason it is only enabled on linux-gcc at the current time.
-
-To add a platform:
-- add its name in options allowed_values below
-- add tool initialization for this platform. Search for "if platform == 'suncc'" as an example.
-"""
-
 import os
 import os.path
 import sys
+
+env = Environment(ENV = os.environ)
 
 JSONCPP_VERSION = open(File('#version').abspath,'rt').read().strip()
 DIST_DIR = '#dist'
@@ -18,32 +11,35 @@ options = Variables()
 options.Add( EnumVariable('platform',
                         'Platform (compiler/stl) used to build the project',
                         'msvc71',
-                        allowed_values='suncc vacpp mingw msvc6 msvc7 msvc71 msvc80 msvc90 linux-gcc'.split(),
+                        allowed_values='suncc vacpp mingw msvc6 msvc7 msvc71 msvc80 msvc90 linux'.split(),
                         ignorecase=2) )
 
-try:
-    platform = ARGUMENTS['platform']
-    if platform == 'linux-gcc':
-        CXX = 'g++' # not quite right, but env is not yet available.
-        import commands
-        version = commands.getoutput('%s -dumpversion' %CXX)
-        platform = 'linux-gcc-%s' %version
-        print "Using platform '%s'" %platform
-        LD_LIBRARY_PATH = os.environ.get('LD_LIBRARY_PATH', '')
-        LD_LIBRARY_PATH = "%s:libs/%s" %(LD_LIBRARY_PATH, platform)
-        os.environ['LD_LIBRARY_PATH'] = LD_LIBRARY_PATH
-        print "LD_LIBRARY_PATH =", LD_LIBRARY_PATH
-except KeyError:
-    print 'You must specify a "platform"'
-    sys.exit(2)
+if env['PLATFORM'] == 'posix':
+   if env.has_key('DEBUG'):
+      env.Append(CCFLAGS = ['-g', '-O0'])
+   else:
+      env.Append(CPPDEFINES = ['NDEBUG'])
+      env.Append(CCFLAGS = ['-O1', '-fomit-frame-pointer'])
+   env.Append(CCFLAGS = ['-Wall', '-Wextra', '-pedantic'])
+   #env['LINKFLAGS'] = ''
+elif env['PLATFORM'] == 'darwin':
+   if not os.environ.has_key('CXX'):
+      env['CXX'] = "clang++"
+   if env.has_key('DEBUG'):
+      env.Append(CCFLAGS = ['-g', '-O0'])
+   else:
+      env.Append(CPPDEFINES = ['NDEBUG'])
+      env.Append(CCFLAGS = ['-O1', '-fomit-frame-pointer'])
+   env.Append(CCFLAGS = ['-Wall', '-Wextra', '-pedantic'])
+   #env['LINKFLAGS'] = ''
 
-print "Building using PLATFORM =", platform
+platform = env['PLATFORM'];
 
 rootbuild_dir = Dir('#buildscons')
-build_dir = os.path.join( '#buildscons', platform )
+variant_dir = os.path.join( '#buildscons', platform )
 bin_dir = os.path.join( '#bin', platform )
 lib_dir = os.path.join( '#libs' )
-sconsign_dir_path = Dir(build_dir).abspath
+sconsign_dir_path = Dir(variant_dir).abspath
 sconsign_path = os.path.join( sconsign_dir_path, '.sconsign.dbm' )
 
 # Ensure build directory exist (SConsignFile fail otherwise!)
@@ -65,9 +61,9 @@ def make_environ_vars():
 	return vars
 	
 
-env = Environment( ENV = make_environ_vars(),
-                   toolpath = ['scons-tools'],
-                   tools=[] ) #, tools=['default'] )
+#env = Environment( ENV = make_environ_vars(),
+#                   toolpath = ['scons-tools'],
+#                   tools=[] ) #, tools=['default'] )
 
 if platform == 'suncc':
     env.Tool( 'sunc++' )
@@ -117,17 +113,13 @@ elif platform == 'msvc90':
 elif platform == 'mingw':
     env.Tool( 'mingw' )
     env.Append( CPPDEFINES=[ "WIN32", "NDEBUG", "_MT" ] )
-elif platform.startswith('linux-gcc'):
-    env.Tool( 'default' )
-    env.Append( LIBS = ['pthread'], CCFLAGS = "-Wall -std=c++11" )
-    env['SHARED_LIB_ENABLED'] = True
 else:
-    print "UNSUPPORTED PLATFORM."
-    env.Exit(1)
+    env.Tool( 'default' )
+    env.Append( LIBS = ['pthread'], CCFLAGS = "-std=c++11" )
 
-env.Tool('targz')
-env.Tool('srcdist')
-env.Tool('globtool')
+#env.Tool('targz')
+#env.Tool('srcdist')
+#env.Tool('globtool')
 
 env.Append( CPPPATH = ['#include'],
             LIBPATH = lib_dir )
@@ -144,7 +136,7 @@ env['LIB_LINK_TYPE'] = 'lib'    # static
 env['LIB_CRUNTIME'] = 'mt'
 env['LIB_NAME_SUFFIX'] = '' #'_${LIB_PLATFORM}_${LIB_LINK_TYPE}${LIB_CRUNTIME}'  # must match autolink naming convention
 env['JSONCPP_VERSION'] = JSONCPP_VERSION
-env['BUILD_DIR'] = env.Dir(build_dir)
+env['BUILD_DIR'] = env.Dir(variant_dir)
 env['ROOTBUILD_DIR'] = env.Dir(rootbuild_dir)
 env['DIST_DIR'] = DIST_DIR
 if 'TarGz' in env['BUILDERS']:
@@ -202,9 +194,9 @@ Export( 'env env_testing buildJSONExample buildLibrary buildJSONTests buildUnitT
 
 def buildProjectInDirectory( target_directory ):
     global build_dir
-    target_build_dir = os.path.join( build_dir, target_directory )
+    target_build_dir = os.path.join( variant_dir, target_directory )
     target = os.path.join( target_directory, 'sconscript' )
-    SConscript( target, build_dir=target_build_dir, duplicate=0 )
+    SConscript( target, variant_dir=target_build_dir, duplicate=0 )
     env['SRCDIST_ADD']( source=[target] )
 
 
@@ -246,4 +238,3 @@ buildProjectInDirectory( 'src/jsontestrunner' )
 buildProjectInDirectory( 'src/lib_json' )
 buildProjectInDirectory( 'src/test_lib_json' )
 #print env.Dump()
-
