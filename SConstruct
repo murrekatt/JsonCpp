@@ -130,7 +130,7 @@ if short_platform.startswith('msvc'):
 # Build script does not support that yet so we only build static libraries.
 # This also fails on AIX because both dynamic and static library ends with
 # extension .a.
-env['SHARED_LIB_ENABLED'] = env.get('SHARED_LIB_ENABLED', False)
+env['SHARED_LIB_ENABLED'] = True #env.get('SHARED_LIB_ENABLED', False)
 env['LIB_PLATFORM'] = short_platform
 env['LIB_LINK_TYPE'] = 'lib'    # static
 env['LIB_CRUNTIME'] = 'mt'
